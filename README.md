@@ -21,12 +21,10 @@ signal a name like `Show Name - S01E02.mkv` would have thrown away.
 subliminal already skips any video that has an embedded or external subtitle
 in the requested language, so re-running over an already-subtitled library is
 a no-op. It searches [OpenSubtitles](https://www.opensubtitles.com) and a
-handful of other providers by default; anonymous use works but is rate
-limited, and the accompanying homelab manifests wire in a
-[dagda](https://github.com/brk3/homelab) infrastructure Secret with an
-OpenSubtitles.com account so hash-based matching -- the most reliable kind,
-since it works from the file's contents rather than its name -- actually
-kicks in.
+handful of other no-auth providers by default. Anonymous OpenSubtitles.com use
+is heavily rate limited; adding an account unlocks hash-based matching -- the
+most reliable kind, since it works from the file's contents rather than its
+name -- see Configuration below.
 
 ## Configuration
 
@@ -40,9 +38,12 @@ kicks in.
 | `LOG_FILE` | _(unset)_ | Also log to this file |
 
 Provider credentials (e.g. an OpenSubtitles.com account) are passed straight
-through to subliminal via its own `SUBLIMINAL_PROVIDER_*` env vars -- see
+through to subliminal via its own `SUBLIMINAL_PROVIDER_*` env vars, e.g.
+`SUBLIMINAL_PROVIDER_OPENSUBTITLESCOM_USERNAME` / `_PASSWORD` -- see
 subliminal's [provider config reference](https://github.com/Diaoul/subliminal)
-for the full list. Brigid doesn't wrap or translate these.
+for the full list. Brigid doesn't wrap or translate these; set them on the
+container and subliminal picks them up directly. No account is required to
+run Brigid at all, just to get past OpenSubtitles.com's anonymous rate limit.
 
 ## Health
 
