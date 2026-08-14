@@ -33,7 +33,7 @@ jobs:
       - run: git checkout ${{ github.sha }}
 
       - run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login forgejo.aiectomy.xyz -u "${{ github.actor }}" --password-stdin
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login forgejo.aiectomy.xyz -u "${{ github.actor }}" --password-stdin
 
       - run: docker build -t forgejo.aiectomy.xyz/pbourke/brigid:${{ github.ref_name }} .
       - run: docker push forgejo.aiectomy.xyz/pbourke/brigid:${{ github.ref_name }}
