@@ -10,6 +10,8 @@ jobs:
     runs-on: docker
     container: python:3.13-slim
     steps:
-      - uses: actions/checkout@v4
+      - run: apt-get update && apt-get install -y --no-install-recommends git
+      - run: git clone ${{ github.server_url }}/${{ github.repository }} .
+      - run: git checkout ${{ github.sha }}
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest -q
