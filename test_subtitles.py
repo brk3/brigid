@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -41,3 +42,16 @@ class TestFetchSubtitles:
     def test_returns_true_on_success(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
         assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is True
+
+    @patch("subtitles.subprocess.run")
+    def test_passes_timeout_to_subprocess(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"])
+
+        assert mock_run.call_args.kwargs["timeout"] == 300
+
+    @patch("subtitles.subprocess.run")
+    def test_returns_false_on_timeout(self, mock_run):
+        mock_run.side_effect = subprocess.TimeoutExpired(["subliminal", "download"], 300)
+        assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is False
