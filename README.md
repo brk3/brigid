@@ -49,7 +49,9 @@ run Brigid at all, just to get past OpenSubtitles.com's anonymous rate limit.
 ## Health
 
 - `/healthz` -- 503 if the watcher thread has died or the main loop has stalled.
-- `/readyz` -- 503 until the startup scan finishes.
+- `/readyz` -- 200 once the watcher is up and beating. The startup scan of the
+  existing library runs in background threads after this point and no longer
+  delays readiness.
 
 ## Development
 

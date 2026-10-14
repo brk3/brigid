@@ -38,7 +38,7 @@ class Health:
     def ready(self) -> tuple[bool, str]:
         with self._lock:
             if not self._ready:
-                return False, "initial scan in progress"
+                return False, "watcher not ready"
             return self.live()
 
 

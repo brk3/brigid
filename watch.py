@@ -2,6 +2,7 @@
 import logging
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -63,6 +64,16 @@ def scan_existing(root: Path):
     logging.info("Scan of %s complete", root)
 
 
+def start_scan_threads(roots: list[Path]) -> list[threading.Thread]:
+    """Start the startup scans without blocking the caller (or readiness)."""
+    threads = []
+    for root in roots:
+        thread = threading.Thread(target=scan_existing, args=(root,), name=f"scan-{root}", daemon=True)
+        thread.start()
+        threads.append(thread)
+    return threads
+
+
 def main() -> int:
     setup_logging()
     health = Health()
@@ -80,9 +91,11 @@ def main() -> int:
     health.track(observer)
     logging.info("Watching %s for new videos", ", ".join(str(root) for root in roots))
 
-    for root in roots:
-        scan_existing(root)
+    # Ready means "the watcher is up". The startup scan takes minutes on a big
+    # library and must not sit on the critical path: the Kubernetes startup
+    # probe (600 s) kills the pod before a single-threaded scan finishes.
     health.mark_ready()
+    start_scan_threads(roots)
 
     try:
         while True:

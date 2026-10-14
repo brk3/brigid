@@ -1,5 +1,8 @@
+import threading
+from pathlib import Path
+
 import watch
-from watch import NewVideoHandler, scan_existing
+from watch import NewVideoHandler, scan_existing, start_scan_threads
 
 
 class TestScanExisting:
@@ -29,6 +32,28 @@ class TestScanExisting:
         scan_existing(tmp_path)
 
         assert seen == ["a.mkv", "b.mkv", "c.mkv"]
+
+
+class TestStartScanThreads:
+    def test_scan_runs_in_background_without_blocking(self, monkeypatch):
+        started = threading.Event()
+        release = threading.Event()
+
+        def fake_scan(root):
+            started.set()
+            release.wait()
+
+        monkeypatch.setattr(watch, "scan_existing", fake_scan)
+
+        threads = start_scan_threads([Path("/data/tv")])
+
+        # The scan is running in a background thread, not blocking the caller.
+        assert started.wait(timeout=1)
+        assert all(thread.is_alive() for thread in threads)
+        release.set()
+        for thread in threads:
+            thread.join(timeout=1)
+        assert not any(thread.is_alive() for thread in threads)
 
 
 class TestNewVideoHandler:
