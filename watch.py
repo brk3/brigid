@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
@@ -19,6 +20,7 @@ SETTLE_SECONDS = int(os.environ.get("SETTLE_SECONDS", "5"))
 HEALTH_PORT = int(os.environ.get("HEALTH_PORT", "8080"))
 BEAT_SECONDS = int(os.environ.get("BEAT_SECONDS", "15"))
 LOG_FILE = os.environ.get("LOG_FILE", "")
+SCAN_WORKERS = int(os.environ.get("SCAN_WORKERS", "4"))
 
 
 def setup_logging():
@@ -52,15 +54,20 @@ class NewVideoHandler(FileSystemEventHandler):
             logging.exception("Failed to fetch subtitles for %s", path)
 
 
+def _fetch(path: Path):
+    try:
+        fetch_subtitles(path, LANGUAGES)
+    except Exception:
+        logging.exception("Failed to fetch subtitles for %s", path)
+
+
 def scan_existing(root: Path):
     logging.info("Scanning existing videos under %s", root)
-    for path in sorted(root.rglob("*")):
-        if not is_video(path):
-            continue
-        try:
-            fetch_subtitles(path, LANGUAGES)
-        except Exception:
-            logging.exception("Failed to fetch subtitles for %s", path)
+    videos = [path for path in sorted(root.rglob("*")) if is_video(path)]
+    with ThreadPoolExecutor(max_workers=SCAN_WORKERS, thread_name_prefix="scan") as pool:
+        # pool.map is lazy: consuming it submits every file and waits for all
+        # workers, preserving the per-call SUBLIMINAL_TIMEOUT_SECONDS bound.
+        list(pool.map(_fetch, videos))
     logging.info("Scan of %s complete", root)
 
 

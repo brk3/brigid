@@ -31,7 +31,8 @@ class TestScanExisting:
         monkeypatch.setattr(watch, "fetch_subtitles", flaky)
         scan_existing(tmp_path)
 
-        assert seen == ["a.mkv", "b.mkv", "c.mkv"]
+        # Workers run in parallel, so completion order is nondeterministic.
+        assert sorted(seen) == ["a.mkv", "b.mkv", "c.mkv"]
 
 
 class TestStartScanThreads:

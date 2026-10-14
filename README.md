@@ -35,6 +35,7 @@ name -- see Configuration below.
 | `LANGUAGES` | `en` | Comma-separated subtitle languages to fetch |
 | `SETTLE_SECONDS` | `5` | Wait after a file appears before fetching |
 | `SUBLIMINAL_TIMEOUT_SECONDS` | `300` | Max seconds a single `subliminal download` may run before it's killed and skipped |
+| `SCAN_WORKERS` | `4` | Parallel workers for the startup scan |
 | `HEALTH_PORT` | `8080` | Port for `/healthz` and `/readyz` |
 | `LOG_FILE` | _(unset)_ | Also log to this file |
 
