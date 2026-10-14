@@ -134,8 +134,11 @@ def fetch_subtitles(path: Path, languages: list[str]) -> bool:
     # tvdb's legacy API 404s on search. Both only burn a request per file.
     # tmdb stays active but is a no-op: with no SUBLIMINAL_REFINER_TMDB_APIKEY
     # set it aborts locally without any network call. -F pins .srt so weak
-    # providers can't leave MicroDVD (.sub) files behind.
-    cmd = ["subliminal", "download", "-R", "omdb", "-R", "tvdb", "-F", "srt"]
+    # providers can't leave MicroDVD (.sub) files behind. There is no
+    # opensubtitles.com account (the credentials are for the legacy .org
+    # XML-RPC provider), so ignore the .com REST provider entirely instead of
+    # letting it fail 401 and get discarded on every file.
+    cmd = ["subliminal", "download", "-R", "omdb", "-R", "tvdb", "-F", "srt", "-P", "opensubtitlescom"]
     for language in languages:
         cmd += ["-l", language]
     cmd.append(str(path))

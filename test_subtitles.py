@@ -44,6 +44,7 @@ class TestFetchSubtitles:
 
         assert mock_run.call_args.args[0] == [
             "subliminal", "download", "-R", "omdb", "-R", "tvdb", "-F", "srt",
+            "-P", "opensubtitlescom",
             "-l", "en", "-l", "fr", "/data/movies/Movie.mkv"
         ]
 
