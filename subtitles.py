@@ -30,8 +30,12 @@ _attempts_loaded = False
 _attempt_log_failed = False
 
 # subliminal logs "download quota exceeded, quota reset on <ts> UTC" when
-# OpenSubtitles.com answers 407. Exit code stays 0, so we must watch stderr.
-QUOTA_EXCEEDED_RE = re.compile(r"download quota exceeded(?:, quota reset on (.+?) UTC)?")
+# OpenSubtitles.com answers 407 and raises DownloadLimitReached (in the
+# stderr traceback) when the legacy OpenSubtitles.org API does. Exit code
+# stays 0 either way, so we must watch stderr.
+QUOTA_EXCEEDED_RE = re.compile(
+    r"(?:download quota exceeded|DownloadLimitReached)(?:, quota reset on (.+?) UTC)?"
+)
 DEFAULT_QUOTA_BACKOFF_SECONDS = 24 * 60 * 60  # fallback when no reset time is reported
 
 _quota_lock = threading.Lock()

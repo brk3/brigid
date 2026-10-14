@@ -119,6 +119,19 @@ class TestQuotaBackoff:
 
         assert subtitles._quota_reset_at >= time.time() + 23 * 60 * 60
 
+    @patch("subtitles.subprocess.run")
+    def test_legacy_provider_407_also_backs_off(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Downloaded 0 subtitle",
+            stderr="ERROR:subliminal.utils:Unexpected error. Discarding provider opensubtitles\n"
+            "subliminal.exceptions.DownloadLimitReached: 407 Download limit reached",
+        )
+
+        fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"])
+
+        assert subtitles._quota_reset_at >= time.time() + 23 * 60 * 60
+
 
 class TestRecentAttemptSkip:
     @patch("subtitles.subprocess.run")
