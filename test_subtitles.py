@@ -30,7 +30,8 @@ class TestFetchSubtitles:
         fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en", "fr"])
 
         assert mock_run.call_args.args[0] == [
-            "subliminal", "download", "-l", "en", "-l", "fr", "/data/movies/Movie.mkv"
+            "subliminal", "download", "-R", "omdb", "-R", "tvdb",
+            "-l", "en", "-l", "fr", "/data/movies/Movie.mkv"
         ]
 
     @patch("subtitles.subprocess.run")

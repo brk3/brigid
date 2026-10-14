@@ -22,7 +22,11 @@ def is_video(path: Path) -> bool:
 
 
 def fetch_subtitles(path: Path, languages: list[str]) -> bool:
-    cmd = ["subliminal", "download"]
+    # Skip refiners that can't work here: omdb's bundled key is dead (401) and
+    # tvdb's legacy API 404s on search. Both only burn a request per file.
+    # tmdb stays active but is a no-op: with no SUBLIMINAL_REFINER_TMDB_APIKEY
+    # set it aborts locally without any network call.
+    cmd = ["subliminal", "download", "-R", "omdb", "-R", "tvdb"]
     for language in languages:
         cmd += ["-l", language]
     cmd.append(str(path))
