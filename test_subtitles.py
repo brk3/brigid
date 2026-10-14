@@ -70,6 +70,17 @@ class TestFetchSubtitles:
         mock_run.side_effect = subprocess.TimeoutExpired(["subliminal", "download"], 300)
         assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is False
 
+    @patch("subtitles.subprocess.run")
+    def test_each_invocation_gets_its_own_cache_dir(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+        path = Path("/data/movies/Movie.mkv")
+
+        fetch_subtitles(path, ["en"])
+        fetch_subtitles(path, ["en"])
+
+        cache_dirs = [call.kwargs["env"]["SUBLIMINAL_CACHE_DIR"] for call in mock_run.call_args_list]
+        assert len(set(cache_dirs)) == 2
+
 
 class TestQuotaBackoff:
     @patch("subtitles.subprocess.run")

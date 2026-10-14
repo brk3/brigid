@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 from datetime import datetime, timezone
@@ -19,8 +20,8 @@ DEFAULT_TIMEOUT_SECONDS = 300
 
 # Failed files are remembered so a restart doesn't re-hammer the rate-limited
 # providers with the same library sweep. The log survives restarts because it
-# lives on the media mount (/data in the container).
-ATTEMPT_LOG = os.environ.get("ATTEMPT_LOG", "/data/brigid-attempts.json")
+# lives on the media mount (TV_ROOT is where brigid writes its subtitles).
+ATTEMPT_LOG = os.environ.get("ATTEMPT_LOG", os.path.join(os.environ.get("TV_ROOT", "/data/tv"), ".brigid-attempts.json"))
 SKIP_RECENT_SECONDS = int(os.environ.get("SKIP_RECENT_SECONDS", str(24 * 60 * 60)))
 
 _attempt_lock = threading.Lock()
@@ -92,6 +93,8 @@ def _load_attempt_times() -> None:
         _attempt_times.update(
             {path: datetime.fromisoformat(timestamp).timestamp() for path, timestamp in saved.items()}
         )
+    except FileNotFoundError:
+        pass  # first run: nothing to load
     except (OSError, ValueError):
         logging.warning("Could not read attempt log %s; starting fresh", ATTEMPT_LOG)
 
@@ -140,8 +143,12 @@ def fetch_subtitles(path: Path, languages: list[str]) -> bool:
     _wait_for_quota_reset()
 
     timeout = _timeout()
+    # Concurrent subliminal processes must not share a cache file: its dbm
+    # backend crashes on the creation race and its MutexLock is thread-only,
+    # so give every invocation a throwaway cache dir.
+    env = {**os.environ, "SUBLIMINAL_CACHE_DIR": tempfile.mkdtemp(prefix="subliminal-cache-")}
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
     except subprocess.TimeoutExpired:
         _record_attempt(path)
         logging.warning("subliminal timed out for %s after %ss; skipping", path, timeout)
