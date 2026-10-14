@@ -167,6 +167,7 @@ def fetch_subtitles(path: Path, languages: list[str]) -> bool:
     # not recorded so a replaced file is still picked up by the watcher.
     if "Downloaded 0 subtitle" in result.stdout:
         _record_attempt(path)
+        logging.info(result.stdout.strip())
         return False
     if result.stdout.strip():
         logging.info(result.stdout.strip())
