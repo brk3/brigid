@@ -13,8 +13,8 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".m4v", ".ts", ".wmv", ".mov"}
 # Upper bound on how long a single subliminal invocation may run before we give
 # up and move on to the next file. subliminal fans out to several subtitle
 # providers over the network, and any one of them can stall indefinitely; the
-# watcher and the startup scan are both single-threaded, so without this a
-# single stuck provider call blocks the entire queue forever with nothing logged.
+# watcher handler is synchronous, so without this a single stuck provider call
+# blocks its queue forever with nothing logged.
 DEFAULT_TIMEOUT_SECONDS = 300
 
 # Failed files are remembered so a restart doesn't re-hammer the rate-limited
