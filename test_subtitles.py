@@ -10,8 +10,12 @@ from subtitles import fetch_subtitles, is_video
 
 
 @pytest.fixture(autouse=True)
-def reset_module_state(monkeypatch):
+def reset_module_state(monkeypatch, tmp_path):
     monkeypatch.setattr(subtitles, "_quota_reset_at", None)
+    monkeypatch.setattr(subtitles, "ATTEMPT_LOG", str(tmp_path / "attempts.json"))
+    monkeypatch.setattr(subtitles, "_attempt_times", {})
+    monkeypatch.setattr(subtitles, "_attempts_loaded", False)
+    monkeypatch.setattr(subtitles, "_attempt_log_failed", False)
 
 
 class TestIsVideo:
@@ -39,7 +43,7 @@ class TestFetchSubtitles:
         fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en", "fr"])
 
         assert mock_run.call_args.args[0] == [
-            "subliminal", "download", "-R", "omdb", "-R", "tvdb",
+            "subliminal", "download", "-R", "omdb", "-R", "tvdb", "-F", "srt",
             "-l", "en", "-l", "fr", "/data/movies/Movie.mkv"
         ]
 
@@ -102,3 +106,45 @@ class TestQuotaBackoff:
         fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"])
 
         assert subtitles._quota_reset_at >= time.time() + 23 * 60 * 60
+
+
+class TestRecentAttemptSkip:
+    @patch("subtitles.subprocess.run")
+    def test_skips_a_file_that_recently_failed(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Downloaded 0 subtitle", stderr=""
+        )
+        path = Path("/data/movies/Movie.mkv")
+
+        assert fetch_subtitles(path, ["en"]) is False
+        mock_run.reset_mock()
+        assert fetch_subtitles(path, ["en"]) is False
+        mock_run.assert_not_called()
+
+    @patch("subtitles.subprocess.run")
+    def test_successful_fetch_is_not_recorded(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Downloaded 1 subtitle", stderr=""
+        )
+        path = Path("/data/movies/Movie.mkv")
+
+        assert fetch_subtitles(path, ["en"]) is True
+        assert fetch_subtitles(path, ["en"]) is True
+        assert mock_run.call_count == 2
+
+    @patch("subtitles.subprocess.run")
+    def test_failed_attempts_survive_a_restart(self, mock_run, monkeypatch, tmp_path):
+        log = tmp_path / "attempts.json"
+        monkeypatch.setattr(subtitles, "ATTEMPT_LOG", str(log))
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Downloaded 0 subtitle", stderr=""
+        )
+        path = Path("/data/movies/Movie.mkv")
+        assert fetch_subtitles(path, ["en"]) is False
+
+        # Simulate a restart: fresh in-memory state, same attempt log on disk.
+        monkeypatch.setattr(subtitles, "_attempt_times", {})
+        monkeypatch.setattr(subtitles, "_attempts_loaded", False)
+        assert fetch_subtitles(path, ["en"]) is False
+
+        assert mock_run.call_count == 1
