@@ -192,6 +192,24 @@ class TestResultLogging:
         assert "No subtitles found for /data/movies/Movie.mkv" in caplog.text
         assert "Collecting videos" not in caplog.text
 
+    @patch("subtitles.subprocess.run")
+    def test_nothing_found_warns_about_discarded_providers(self, mock_run, caplog):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Collecting videos\n1 video collected / 0 video ignored / 0 error\n"
+            "Some providers have been discarded due to unexpected errors: addic7ed, gestdown\n"
+            "Downloaded 0 subtitle",
+            stderr="",
+        )
+
+        with caplog.at_level(logging.WARNING):
+            assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is False
+
+        assert (
+            "No subtitles found for /data/movies/Movie.mkv: "
+            "subliminal discarded providers: addic7ed, gestdown"
+        ) in caplog.text
+
 
 class TestRecentAttemptSkip:
     @patch("subtitles.subprocess.run")

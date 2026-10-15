@@ -42,6 +42,7 @@ DEFAULT_QUOTA_BACKOFF_SECONDS = 24 * 60 * 60  # fallback when no reset time is r
 # parse them into one readable log line per file instead of dumping them raw.
 SUMMARY_RE = re.compile(r"(\d+) video collected / (\d+) video ignored / (\d+) error")
 DOWNLOADED_RE = re.compile(r"Downloaded (\d+) subtitles?")
+DISCARDED_RE = re.compile(r"Some providers have been discarded due to unexpected errors: (.+)")
 
 
 def _parse_summary(stdout: str) -> tuple[int, int, int] | None:
@@ -191,7 +192,16 @@ def fetch_subtitles(path: Path, languages: list[str]) -> bool:
             # on the same file. Successful fetches are not recorded so a
             # replaced file is still picked up by the watcher.
             _record_attempt(path)
-            logging.info("No subtitles found for %s", path)
+            discarded = DISCARDED_RE.search(result.stdout)
+            if discarded:
+                # "Nothing found" usually means provider failures, not an
+                # empty search result: say which providers broke.
+                logging.warning(
+                    "No subtitles found for %s: subliminal discarded providers: %s",
+                    path, discarded.group(1),
+                )
+            else:
+                logging.info("No subtitles found for %s", path)
             return False
         logging.info(
             "Downloaded %d %s for %s",
