@@ -38,6 +38,20 @@ QUOTA_EXCEEDED_RE = re.compile(
 )
 DEFAULT_QUOTA_BACKOFF_SECONDS = 24 * 60 * 60  # fallback when no reset time is reported
 
+# subliminal's per-file stdout is progressbar noise plus these two lines; we
+# parse them into one readable log line per file instead of dumping them raw.
+SUMMARY_RE = re.compile(r"(\d+) video collected / (\d+) video ignored / (\d+) error")
+DOWNLOADED_RE = re.compile(r"Downloaded (\d+) subtitles?")
+
+
+def _parse_summary(stdout: str) -> tuple[int, int, int] | None:
+    match = SUMMARY_RE.search(stdout)
+    if not match:
+        return None
+    collected, ignored, errors = match.groups()
+    return int(collected), int(ignored), int(errors)
+
+
 _quota_lock = threading.Lock()
 _quota_reset_at: float | None = None  # epoch seconds; fetchers sleep until it passes
 
@@ -169,13 +183,36 @@ def fetch_subtitles(path: Path, languages: list[str]) -> bool:
         _record_attempt(path)
         logging.warning("subliminal failed for %s: %s", path, result.stderr.strip())
         return False
-    # exit 0 with "Downloaded 0 subtitle" means nothing was found: remember it
-    # so a restart doesn't waste quota on the same file. Successful fetches are
-    # not recorded so a replaced file is still picked up by the watcher.
-    if "Downloaded 0 subtitle" in result.stdout:
-        _record_attempt(path)
-        logging.info(result.stdout.strip())
-        return False
+    downloaded = DOWNLOADED_RE.search(result.stdout)
+    if downloaded:
+        count = int(downloaded.group(1))
+        if count == 0:
+            # Nothing was found: remember it so a restart doesn't waste quota
+            # on the same file. Successful fetches are not recorded so a
+            # replaced file is still picked up by the watcher.
+            _record_attempt(path)
+            logging.info("No subtitles found for %s", path)
+            return False
+        logging.info(
+            "Downloaded %d %s for %s",
+            count, "subtitle" if count == 1 else "subtitles", path,
+        )
+        return True
+    summary = _parse_summary(result.stdout)
+    if summary:
+        collected, ignored, errors = summary
+        if errors:
+            logging.warning(
+                "Could not scan %s for subtitles (%d error%s)",
+                path, errors, "s" if errors > 1 else "",
+            )
+            return True
+        if collected == 0:
+            # "N video ignored" means the file already has subtitles in every
+            # requested language: the common case on a library rescan, so it
+            # stays out of the INFO log.
+            logging.debug("Subtitles already present for %s", path)
+            return True
     if result.stdout.strip():
         logging.info(result.stdout.strip())
     return True

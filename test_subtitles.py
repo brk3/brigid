@@ -1,3 +1,4 @@
+import logging
 import subprocess
 import time
 from pathlib import Path
@@ -131,6 +132,65 @@ class TestQuotaBackoff:
         fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"])
 
         assert subtitles._quota_reset_at >= time.time() + 23 * 60 * 60
+
+
+class TestResultLogging:
+    @patch("subtitles.subprocess.run")
+    def test_download_is_logged_as_one_line_with_path(self, mock_run, caplog):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Collecting videos\n1 video collected / 0 video ignored / 0 error\n"
+            "Downloading subtitles\nDownloaded 1 subtitle",
+            stderr="",
+        )
+
+        with caplog.at_level(logging.INFO):
+            assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is True
+
+        assert "Downloaded 1 subtitle for /data/movies/Movie.mkv" in caplog.text
+        assert "Collecting videos" not in caplog.text
+
+    @patch("subtitles.subprocess.run")
+    def test_ignored_video_logs_a_debug_line_instead_of_dumping_stdout(self, mock_run, caplog):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Collecting videos\n0 video collected / 1 video ignored / 0 error",
+            stderr="",
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is True
+
+        assert "Subtitles already present for /data/movies/Movie.mkv" in caplog.text
+        assert "Collecting videos" not in caplog.text
+
+    @patch("subtitles.subprocess.run")
+    def test_scan_error_is_logged_as_a_warning(self, mock_run, caplog):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Collecting videos\n0 video collected / 0 video ignored / 1 error",
+            stderr="",
+        )
+
+        with caplog.at_level(logging.WARNING):
+            assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is True
+
+        assert "Could not scan /data/movies/Movie.mkv for subtitles (1 error)" in caplog.text
+
+    @patch("subtitles.subprocess.run")
+    def test_nothing_found_logs_a_single_line(self, mock_run, caplog):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="Collecting videos\n1 video collected / 0 video ignored / 0 error\n"
+            "Downloaded 0 subtitle",
+            stderr="",
+        )
+
+        with caplog.at_level(logging.INFO):
+            assert fetch_subtitles(Path("/data/movies/Movie.mkv"), ["en"]) is False
+
+        assert "No subtitles found for /data/movies/Movie.mkv" in caplog.text
+        assert "Collecting videos" not in caplog.text
 
 
 class TestRecentAttemptSkip:
