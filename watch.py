@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import logging
 import os
+import re
 import sys
 import threading
 import time
@@ -23,14 +24,72 @@ LOG_FILE = os.environ.get("LOG_FILE", "")
 SCAN_WORKERS = int(os.environ.get("SCAN_WORKERS", "4"))
 
 
+RESET = "\033[0m"
+DIM, RED, YELLOW, GREEN, CYAN = "\033[2m", "\033[31m", "\033[33m", "\033[32m", "\033[36m"
+
+LEVEL_COLORS = {
+    logging.DEBUG: CYAN,
+    logging.INFO: GREEN,
+    logging.WARNING: YELLOW,
+    logging.ERROR: RED,
+    logging.CRITICAL: "\033[1;31m",
+}
+
+# Outcome phrases, most specific first: "failed within" is a benign skip and
+# must win over the plain "failed" red.
+OUTCOME_COLORS = re.compile(
+    r"(?P<dim>Skipping|failed within|already present)"
+    r"|(?P<red>timed out|failed|died)"
+    r"|(?P<yellow>No subtitles found|Could not|quota exhausted|backing off|Pausing|discarded providers)"
+    r"|(?P<green>Downloaded|complete)"
+    r"|(?P<cyan>New video detected)",
+    re.IGNORECASE,
+)
+# shortcut: only /healthz and /readyz are exempt from path highlighting; grow
+# the lookahead if more non-file paths show up in log messages.
+PATH_PATTERN = re.compile(r"/(?!healthz\b|readyz\b)[^\s,:)]+")
+
+
+def _colorize(message: str) -> str:
+    def _replace(match):
+        for name, color in (("dim", DIM), ("red", RED), ("yellow", YELLOW), ("green", GREEN), ("cyan", CYAN)):
+            if match.group(name):
+                return f"{color}{match.group()}{RESET}"
+        return match.group()
+
+    message = OUTCOME_COLORS.sub(_replace, message)
+    return PATH_PATTERN.sub(lambda m: f"{CYAN}{m.group()}{RESET}", message)
+
+
+class ColoredFormatter(logging.Formatter):
+    def format(self, record):
+        levelname = record.levelname
+        record.levelname = f"{LEVEL_COLORS.get(record.levelno, '')}{levelname}{RESET}"
+        try:
+            return super().format(record)
+        finally:
+            record.levelname = levelname
+
+    def formatMessage(self, record):
+        return _colorize(super().formatMessage(record))
+
+
+FMT = "%(asctime)s %(levelname)s %(message)s"
+
+
 def setup_logging():
-    handlers = [logging.StreamHandler(sys.stdout)]
+    handlers = []
+    stream = logging.StreamHandler(sys.stdout)
+    # Color only when a human is at a terminal; piped and file logs stay plain.
+    stream.setFormatter(ColoredFormatter(FMT) if sys.stdout.isatty() else logging.Formatter(FMT))
+    handlers.append(stream)
     if LOG_FILE:
         Path(LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(LOG_FILE))
+        file_handler = logging.FileHandler(LOG_FILE)
+        file_handler.setFormatter(logging.Formatter(FMT))
+        handlers.append(file_handler)
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
         handlers=handlers,
     )
 

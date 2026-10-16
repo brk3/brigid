@@ -1,3 +1,4 @@
+import logging
 import threading
 from pathlib import Path
 
@@ -78,3 +79,30 @@ class TestNewVideoHandler:
         NewVideoHandler()._handle(str(tmp_path / "movie.nfo"))
 
         assert called == []
+
+
+class TestColoredFormatter:
+    @staticmethod
+    def _record(message, level=logging.INFO):
+        return logging.LogRecord("test", level, __file__, 1, message, None, None)
+
+    def test_colors_outcome_words_and_paths(self):
+        out = watch.ColoredFormatter("%(levelname)s %(message)s").format(
+            self._record("No subtitles found for /data/tv/a.mkv")
+        )
+        assert "\033[33mNo subtitles found\033[0m" in out
+        assert "\033[36m/data/tv/a.mkv\033[0m" in out
+
+    def test_benign_skip_is_not_colored_red(self):
+        out = watch.ColoredFormatter("%(message)s").format(
+            self._record("Skipping /data/tv/a.mkv: failed within the last 86400s", logging.WARNING)
+        )
+        assert "\033[31m" not in out
+        assert "\033[2mSkipping\033[0m" in out
+        assert "\033[2mfailed within\033[0m" in out
+
+    def test_levelname_is_colored_and_restored(self):
+        formatter = watch.ColoredFormatter("%(levelname)s %(message)s")
+        record = self._record("Watching /data/tv for new videos")
+        assert "\033[32mINFO\033[0m" in formatter.format(record)
+        assert record.levelname == "INFO"  # not leaked into other handlers
